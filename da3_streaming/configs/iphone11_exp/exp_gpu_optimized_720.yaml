@@ -1,0 +1,50 @@
+Weights:
+  DA3: './weights/model.safetensors'
+  DA3_CONFIG: './weights/config.json'
+  SALAD: './weights/dino_salad.ckpt'
+
+Model:
+  chunk_size: 24          # 大幅增加以充分利用GPU (原来12)
+  overlap: 10             # 适度重叠，42%重叠率
+  loop_chunk_size: 24
+  loop_enable: True
+  useDBoW: False
+  delete_temp_files: True
+  align_lib: 'triton'
+  align_method: 'sim3'
+  scale_compute_method: 'auto'
+  align_type: 'dense'
+
+  ref_view_strategy: 'saddle_balanced'
+  ref_view_strategy_loop: 'saddle_balanced'
+  depth_threshold: 20.0
+
+  save_depth_conf_result: True
+  save_debug_info: False
+
+  Sparse_Align:
+    keypoint_select: 'disk'
+    keypoint_num: 12000           # 增加特征点以匹配更大的chunk
+
+  IRLS:
+    delta: 0.05
+    max_iters: 10
+    tol: 1e-10
+
+  Pointcloud_Save:
+    sample_ratio: 0.030           # 保持密集点云
+    conf_threshold_coef: 0.70
+
+Loop:
+  SALAD:
+    image_size: [336, 336]
+    batch_size: 32
+    similarity_threshold: 0.78
+    top_k: 15
+    use_nms: True
+    nms_threshold: 20
+
+  SIM3_Optimizer:
+    lang_version: 'cpp'
+    max_iterations: 50
+    lambda_init: 1e-7
