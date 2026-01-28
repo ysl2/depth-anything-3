@@ -1,3 +1,7 @@
+data/
+output/
+weights/
+
 # Python cache
 __pycache__/
 *.py[cod]
