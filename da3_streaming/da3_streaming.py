@@ -263,6 +263,7 @@ class DA3_Streaming:
         ref_view_strategy = self.config["Model"][
             "ref_view_strategy" if not is_loop else "ref_view_strategy_loop"
         ]
+        use_ray_pose = self.config["Model"].get("use_ray_pose", False)
 
         torch.cuda.empty_cache()
         with torch.no_grad():
@@ -270,7 +271,7 @@ class DA3_Streaming:
                 images = chunk_image_paths
                 # images: ['xxx.png', 'xxx.png', ...]
 
-                predictions = self.model.inference(images, ref_view_strategy=ref_view_strategy)
+                predictions = self.model.inference(images, ref_view_strategy=ref_view_strategy, use_ray_pose=use_ray_pose)
 
                 predictions.depth = np.squeeze(predictions.depth)
                 predictions.conf -= 1.0
