@@ -1,23 +1,29 @@
+import argparse
 import open3d as o3d
 import numpy as np
 
-# 读取点云
-pcd = o3d.io.read_point_cloud("./output/south-building/pcd/combined_pcd.ply")
-print(f"Loaded {len(pcd.points)} points")
 
-# 获取点云边界框进行居中显示
-bounds = pcd.get_axis_aligned_bounding_box()
-center = bounds.get_center()
-pcd.translate(-center)
+def main():
+    parser = argparse.ArgumentParser(description="Visualize point cloud using Open3D")
+    parser.add_argument("-i", "--input", type=str, required=True,
+                        help="Path to PLY point cloud file")
+    parser.add_argument("--rotate", action="store_true", default=True,
+                        help="Enable X-axis 180° rotation")
 
-# 修正上下颠倒：绕X轴旋转180度
-R = pcd.get_rotation_matrix_from_xyz([np.pi, 0, 0])
-pcd.rotate(R, center=[0, 0, 0])
+    args = parser.parse_args()
 
-# 可视化
-o3d.visualization.draw_geometries(
-    [pcd],
-    window_name="South-Building 3D Reconstruction (Corrected)",
-    width=1920,
-    height=1080
-)
+    # Read point cloud
+    pcd = o3d.io.read_point_cloud(args.input)
+    print(f"Loaded {len(pcd.points)} points")
+
+    # Optional rotation
+    if args.rotate:
+        R = pcd.get_rotation_matrix_from_xyz([np.pi, 0, 0])
+        pcd.rotate(R, center=[0, 0, 0])
+
+    # Visualize
+    o3d.visualization.draw_geometries([pcd])
+
+
+if __name__ == "__main__":
+    main()
