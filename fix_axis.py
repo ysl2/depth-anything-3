@@ -4,6 +4,7 @@ import os
 import numpy as np
 from vtkmodules.vtkIOPLY import vtkPLYWriter
 
+
 class AxisRotator:
     def __init__(self, mesh, plotter, filename, rgb_name, raw_rgb_data):
         self.mesh = mesh
@@ -20,6 +21,9 @@ class AxisRotator:
         self.angle_y = 0.0
         self.angle_z = 0.0
 
+        # 当前选中的轴 ('x', 'y', 或 'z')
+        self.active_axis = 'x'
+
     def update_mesh(self):
         # 1. 还原坐标
         self.mesh.points = self.original_points.copy()
@@ -33,18 +37,84 @@ class AxisRotator:
             self.mesh.rotate_z(self.angle_z, inplace=True)
 
         self.plotter.render()
+        self.update_info_display()
+
+    def update_info_display(self):
+        """更新角度信息显示"""
+        info = f"X: {self.angle_x:.2f}° | Y: {self.angle_y:.2f}° | Z: {self.angle_z:.2f}° | Active: {self.active_axis.upper()}"
+        self.plotter.add_text(info, position='upper_left', color='blue', font_size=12, name='angle_info')
+
+    def set_active_axis(self, axis):
+        """设置当前活动的轴"""
+        self.active_axis = axis
+        self.update_info_display()
+
+    def adjust_angle(self, delta):
+        """微调当前活动轴的角度"""
+        if self.active_axis == 'x':
+            self.angle_x += delta
+        elif self.active_axis == 'y':
+            self.angle_y += delta
+        elif self.active_axis == 'z':
+            self.angle_z += delta
+        self.update_mesh()
+
+    def set_angle_from_input(self, axis_str):
+        """从用户输入设置角度"""
+        try:
+            angle = float(input(f"\n输入 {axis_str.upper()} 轴角度 (-180 到 180): "))
+            angle = max(-180, min(180, angle))  # 限制范围
+            if axis_str == 'x':
+                self.angle_x = angle
+            elif axis_str == 'y':
+                self.angle_y = angle
+            elif axis_str == 'z':
+                self.angle_z = angle
+            self.update_mesh()
+            print(f"已设置 {axis_str.upper()} = {angle}°")
+        except ValueError:
+            print("无效输入，请输入数字")
+        except KeyboardInterrupt:
+            print("\n取消输入")
 
     def callback_x(self, value):
         self.angle_x = value
+        self.set_active_axis('x')
         self.update_mesh()
 
     def callback_y(self, value):
         self.angle_y = value
+        self.set_active_axis('y')
         self.update_mesh()
 
     def callback_z(self, value):
         self.angle_z = value
+        self.set_active_axis('z')
         self.update_mesh()
+
+    # 键盘回调（无参数版本，通过闭包捕获键值）
+    def _make_key_callback(self, action):
+        """创建无参数的键盘回调"""
+        def callback():
+            action()
+        return callback
+
+    # 各种键盘动作
+    def _key_x(self): self.set_active_axis('x')
+    def _key_y(self): self.set_active_axis('y')
+    def _key_z(self): self.set_active_axis('z')
+    def _key_up(self): self.adjust_angle(1.0)
+    def _key_down(self): self.adjust_angle(-1.0)
+    def _key_left(self): self.adjust_angle(-0.1)
+    def _key_right(self): self.adjust_angle(0.1)
+    def _key_kp7(self): self.adjust_angle(10.0)
+    def _key_kp1(self): self.adjust_angle(-10.0)
+    def _key_r(self):
+        self.angle_x = 0.0
+        self.angle_y = 0.0
+        self.angle_z = 0.0
+        self.update_mesh()
+    def _key_i(self): self.set_angle_from_input(self.active_axis)
 
     def save_cloud(self, state):
         if not state: return
@@ -89,8 +159,9 @@ class AxisRotator:
             # 恢复显示的活跃状态
             self.mesh.set_active_scalars(self.rgb_name)
 
+
 def main():
-    parser = argparse.ArgumentParser(description="交互式点云轴向校准工具 (Final Fix)")
+    parser = argparse.ArgumentParser(description="交互式点云轴向校准工具 (with Fine Tuning)")
     parser.add_argument("-i", "--input", required=True, help="Path to input PLY file")
     args = parser.parse_args()
 
@@ -155,12 +226,50 @@ def main():
 
     pl.show_axes()
     pl.show_grid(color='black')
-    pl.add_text("Adjust Sliders -> Click [Save]", position='upper_right', color='black', font_size=12)
+
+    # 帮助文本
+    help_text = (
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "           操控说明\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "【滑块】粗略调整各轴角度\n"
+        "【键盘】精确微调:\n"
+        "   X/Y/Z  - 选择活动轴\n"
+        "   ↑/↓    - ±1° 微调\n"
+        "   ←/→    - ±0.1° 微调\n"
+        "   小键盘7/1 - ±10° 微调\n"
+        "   I      - 精确输入角度\n"
+        "   R      - 重置所有轴\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    )
+    pl.add_text(help_text, position='upper_right', color='black', font_size=10)
 
     # 初始化 Rotator
     rotator = AxisRotator(mesh, pl, args.input, rgb_name, raw_rgb_data)
 
-    # UI 控件
+    # 注册键盘事件（为每个键绑定对应的回调）
+    pl.add_key_event('x', rotator._key_x)
+    pl.add_key_event('X', rotator._key_x)
+    pl.add_key_event('y', rotator._key_y)
+    pl.add_key_event('Y', rotator._key_y)
+    pl.add_key_event('z', rotator._key_z)
+    pl.add_key_event('Z', rotator._key_z)
+    pl.add_key_event('Up', rotator._key_up)
+    pl.add_key_event('KP_8', rotator._key_up)
+    pl.add_key_event('Down', rotator._key_down)
+    pl.add_key_event('KP_2', rotator._key_down)
+    pl.add_key_event('Right', rotator._key_right)
+    pl.add_key_event('KP_6', rotator._key_right)
+    pl.add_key_event('Left', rotator._key_left)
+    pl.add_key_event('KP_4', rotator._key_left)
+    pl.add_key_event('KP_7', rotator._key_kp7)
+    pl.add_key_event('KP_1', rotator._key_kp1)
+    pl.add_key_event('r', rotator._key_r)
+    pl.add_key_event('R', rotator._key_r)
+    pl.add_key_event('i', rotator._key_i)
+    pl.add_key_event('I', rotator._key_i)
+
+    # UI 控件 - 滑块
     slider_config = {'style': 'modern', 'color': 'black', 'pointa': (0.05, 0.1), 'pointb': (0.25, 0.1)}
     pl.add_slider_widget(rotator.callback_x, rng=[-180, 180], value=0, title="Rotate X", **slider_config)
 
@@ -184,7 +293,11 @@ def main():
     )
     pl.add_text("Save", position=(75, 110), font_size=12, color='black')
 
+    # 初始化显示
+    rotator.update_info_display()
+
     pl.show()
+
 
 if __name__ == "__main__":
     main()
