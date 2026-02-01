@@ -53,8 +53,8 @@ def main():
     #     mesh.translate([-center[0], -center[1], -center[2]], inplace=True)
     #
     # Optional rotation
-    mesh.rotate_x(-100, point=mesh.center, inplace=True)  # X rotation + 180° flip
-    mesh.rotate_y(-20, point=mesh.center, inplace=True)
+    # mesh.rotate_x(-100, point=mesh.center, inplace=True)  # X rotation + 180° flip
+    # mesh.rotate_y(-20, point=mesh.center, inplace=True)
     #
     # # Surface reconstruction
     # if args.mesh:
