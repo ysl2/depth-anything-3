@@ -1,0 +1,85 @@
+Weights:
+  DA3: './weights/model.safetensors'
+  DA3_CONFIG: './weights/config.json'
+  SALAD: './weights/dino_salad.ckpt'
+
+Model:
+  use_ray_pose: True
+  chunk_size: 60
+  overlap: 30
+  loop_chunk_size: 15 # imgs of loop chunk = 2 * loop_chunk_size
+  loop_enable: True
+  useDBoW: False
+  delete_temp_files: True
+  align_lib: 'triton' # choose among 'triton' (GPU), 'torch' (GPU), 'numba' (CPU) or 'numpy' (CPU)
+  align_method: 'scale+se3' # choose among 'sim3', 'se3' or 'scale+se3'
+  scale_compute_method: 'auto' # choose among 'auto', 'ransac' or 'weighted'. It is used when align_method == 'scale+se3'
+  align_type: 'dense' # choose between 'dense' or 'sparse'. Sparse align is constructing, not avaible for now
+
+  ref_view_strategy: 'saddle_balanced' # 'middle', 'saddle_balanced', 'first' or 'saddle_sim_range'
+  ref_view_strategy_loop: 'saddle_balanced' # 'middle', 'saddle_balanced', 'first' or 'saddle_sim_range'
+  depth_threshold: 15.0
+
+  save_depth_conf_result: True
+  save_debug_info: False
+
+  Sparse_Align:
+    keypoint_select: 'orb' # choose among 'orb', 'fast' or 'disk'
+    keypoint_num: 5000
+
+  IRLS:
+    delta: 0.1
+    max_iters: 5
+    tol: 1e-9
+
+  Pointcloud_Save:
+    sample_ratio: 0.015
+    conf_threshold_coef: 0.75 # conf_threshold = np.mean(confs) * conf_threshold_coef
+
+Loop:
+  SALAD:
+    image_size: [336, 336]
+    batch_size: 32
+    similarity_threshold: 0.85
+    top_k: 5
+    use_nms: True
+    nms_threshold: 25
+
+  SIM3_Optimizer:
+    lang_version: 'cpp'
+    # choose between 'cpp' or 'python'. will auto set 'python' if c++ version has not installed
+    max_iterations: 30
+    lambda_init: 1e-6
+
+# ===== 显存优化建议 =====
+#
+# 如果运行时遇到 CUDA Out of Memory 错误:
+#
+# 1. 降低 chunk_size:
+#    - 90 -> 60 -> 45 -> 30
+#
+# 2. 降低 batch_size (Loop/SALAD):
+#    - batch_size: 32 -> 16 -> 8
+#
+# 3. 使用 CPU 对齐:
+#    - align_lib: 'torch' -> 'numba'
+#
+# 4. 减少输入图像分辨率:
+#    ffmpeg 时使用更小的 scale 值，如:
+#    ffmpeg -i video.mp4 -vf "fps=2,scale=448:-1" ./frames/frame_%06d.png
+#
+# 5. 禁用 ray_pose (轻微降低精度):
+#    - use_ray_pose: True -> False
+#
+# ===== 质量优化建议 =====
+#
+# 如果显存有余量，可以增加以下参数提升质量:
+#
+# 1. 增大 chunk_size (更好的几何一致性):
+#    - chunk_size: 60 -> 90 (横屏视频)
+#
+# 2. 使用更严格的对齐:
+#    - scale_compute_method: 'auto' -> 'ransac'
+#
+# 3. 增加点云采样:
+#    - Pointcloud_Save.sample_ratio: 0.015 -> 0.02
