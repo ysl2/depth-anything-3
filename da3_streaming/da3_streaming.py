@@ -250,12 +250,28 @@ class DA3_Streaming:
                 )
         print("")
 
-    def process_single_chunk(self, range_1, chunk_idx=None, range_2=None, is_loop=False):
+    def process_single_chunk(self, range_1, chunk_idx=None, range_2=None, is_loop=False, skip_if_exists=False):
         start_idx, end_idx = range_1
         chunk_image_paths = self.img_list[start_idx:end_idx]
         if range_2 is not None:
             start_idx, end_idx = range_2
             chunk_image_paths += self.img_list[start_idx:end_idx]
+
+        # Check if chunk file already exists (for resume mode)
+        if not is_loop and chunk_idx is not None and skip_if_exists:
+            save_path = os.path.join(self.result_unaligned_dir, f"chunk_{chunk_idx}.npy")
+            if os.path.exists(save_path):
+                print(f"[SKIP] Chunk {chunk_idx} file already exists, loading from disk")
+                predictions = np.load(save_path, allow_pickle=True).item()
+
+                # Restore camera poses and intrinsics
+                extrinsics = predictions.extrinsics
+                intrinsics = predictions.intrinsics
+                chunk_range = self.chunk_indices[chunk_idx]
+                self.all_camera_poses.append((chunk_range, extrinsics))
+                self.all_camera_intrinsics.append((chunk_range, intrinsics))
+
+                return predictions
 
         # images = load_and_preprocess_images(chunk_image_paths).to(self.device)
         print(f"Loaded {len(chunk_image_paths)} images")
@@ -521,7 +537,7 @@ class DA3_Streaming:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
         plt.close()
 
-    def process_long_sequence(self):
+    def process_long_sequence(self, resume_chunk=0):
         if self.overlap >= self.chunk_size:
             raise ValueError(
                 f"[SETTING ERROR] Overlap ({self.overlap}) \
@@ -535,11 +551,96 @@ class DA3_Streaming:
                 chunks of size {self.chunk_size} with {self.overlap} overlap"
         )
 
-        pre_predictions = None
+        # Determine if we can skip inference by checking if chunks exist
+        skip_inference = True
+        for i in range(len(self.chunk_indices)):
+            chunk_path = os.path.join(self.result_unaligned_dir, f"chunk_{i}.npy")
+            if not os.path.exists(chunk_path):
+                skip_inference = False
+                break
+
+        if skip_inference:
+            print(f"[RESUME] All chunks exist on disk, will skip inference and use cached results")
+
+        if resume_chunk > 0:
+            print(f"[RESUME] Resuming from chunk {resume_chunk}")
+
+            # Load the sim3_list that was computed up to resume_chunk - 1
+            # We need to reconstruct this from the saved chunks
+            print(f"[RESUME] Reconstructing sim3_list from chunks 0 to {resume_chunk - 1}")
+
+            # Load first chunk as pre_predictions
+            first_chunk_path = os.path.join(self.result_unaligned_dir, "chunk_0.npy")
+            if not os.path.exists(first_chunk_path):
+                raise ValueError(f"[RESUME ERROR] First chunk not found: {first_chunk_path}")
+            pre_predictions = np.load(first_chunk_path, allow_pickle=True).item()
+
+            # Reconstruct sim3_list and camera poses for chunks 1 to resume_chunk - 1
+            for i in range(1, resume_chunk):
+                chunk_path = os.path.join(self.result_unaligned_dir, f"chunk_{i}.npy")
+                if not os.path.exists(chunk_path):
+                    raise ValueError(f"[RESUME ERROR] Chunk {i} not found: {chunk_path}")
+
+                cur_predictions = np.load(chunk_path, allow_pickle=True).item()
+
+                # Compute SIM3 between chunk i-1 and chunk i
+                print(f"[RESUME] Re-computing SIM3 for chunks {i-1} -> {i}")
+                chunk_data1 = pre_predictions
+                chunk_data2 = cur_predictions
+
+                point_map1 = depth_to_point_cloud_vectorized(
+                    chunk_data1.depth, chunk_data1.intrinsics, chunk_data1.extrinsics
+                )
+                point_map2 = depth_to_point_cloud_vectorized(
+                    chunk_data2.depth, chunk_data2.intrinsics, chunk_data2.extrinsics
+                )
+
+                point_map1 = point_map1[-self.overlap :]
+                point_map2 = point_map2[: self.overlap]
+                conf1 = chunk_data1.conf[-self.overlap :]
+                conf2 = chunk_data2.conf[: self.overlap]
+
+                if self.config["Model"]["align_method"] == "scale+se3":
+                    chunk1_depth = np.squeeze(chunk_data1.depth[-self.overlap :])
+                    chunk2_depth = np.squeeze(chunk_data2.depth[: self.overlap])
+                    chunk1_depth_conf = np.squeeze(chunk_data1.conf[-self.overlap :])
+                    chunk2_depth_conf = np.squeeze(chunk_data2.conf[: self.overlap])
+                else:
+                    chunk1_depth = None
+                    chunk2_depth = None
+                    chunk1_depth_conf = None
+                    chunk2_depth_conf = None
+
+                s, R, t = self.align_2pcds(
+                    point_map1, conf1, point_map2, conf2,
+                    chunk1_depth, chunk2_depth, chunk1_depth_conf, chunk2_depth_conf,
+                )
+                self.sim3_list.append((s, R, t))
+
+                # Restore camera poses and intrinsics
+                chunk_range = self.chunk_indices[i]
+                self.all_camera_poses.append((chunk_range, chunk_data2.extrinsics))
+                self.all_camera_intrinsics.append((chunk_range, chunk_data2.intrinsics))
+
+                pre_predictions = cur_predictions
+
+            # Also add chunk 0 camera poses
+            chunk_0_data = np.load(first_chunk_path, allow_pickle=True).item()
+            self.all_camera_poses.insert(0, (self.chunk_indices[0], chunk_0_data.extrinsics))
+            self.all_camera_intrinsics.insert(0, (self.chunk_indices[0], chunk_0_data.intrinsics))
+
+            print(f"[RESUME] Reconstructed {len(self.sim3_list)} SIM3 transforms")
+        else:
+            pre_predictions = None
+
         for chunk_idx in range(len(self.chunk_indices)):
+            # Skip already processed chunks when resume_chunk > 0
+            if chunk_idx < resume_chunk:
+                continue
+
             print(f"[Progress]: {chunk_idx}/{len(self.chunk_indices)}")
             cur_predictions = self.process_single_chunk(
-                self.chunk_indices[chunk_idx], chunk_idx=chunk_idx
+                self.chunk_indices[chunk_idx], chunk_idx=chunk_idx, skip_if_exists=skip_inference
             )
             torch.cuda.empty_cache()
 
@@ -587,6 +688,14 @@ class DA3_Streaming:
 
             pre_predictions = cur_predictions
 
+        # Save sim3_list after sequential alignment for resume capability
+        # (before loop closure optimization)
+        import pickle
+        sim3_sequential_path = os.path.join(self.output_dir, "sim3_list_sequential.pkl")
+        with open(sim3_sequential_path, "wb") as f:
+            pickle.dump(self.sim3_list, f)
+        print(f"[SAVE] Sequential SIM3 transforms saved to {sim3_sequential_path}")
+
         if self.loop_enable:
             self.loop_list = self.get_loop_pairs()
             del self.loop_detector  # Save GPU Memory
@@ -623,6 +732,13 @@ class DA3_Streaming:
             self.plot_loop_closure(
                 input_abs_poses, optimized_abs_poses, save_name="sim3_opt_result.png"
             )
+
+        # Save sim3_list for resume capability
+        import pickle
+        sim3_path = os.path.join(self.output_dir, "sim3_list.pkl")
+        with open(sim3_path, "wb") as f:
+            pickle.dump(self.sim3_list, f)
+        print(f"[SAVE] SIM3 transforms saved to {sim3_path}")
 
         print("Apply alignment")
         self.sim3_list = accumulate_sim3_transforms(self.sim3_list)
@@ -695,11 +811,16 @@ class DA3_Streaming:
                 predictions.depth *= s
                 self.save_depth_conf_result(predictions, chunk_idx + 1, s, R, t)
 
+        # Early cleanup: free up disk space after alignment is complete
+        # The aligned chunks are saved to disk but are never read again
+        # (point clouds are generated directly from them)
+        self.cleanup_temp_files_early()
+
         self.save_camera_poses()
 
         print("Done.")
 
-    def run(self):
+    def run(self, resume_chunk=0):
         print(f"Loading images from {self.img_dir}...")
         self.img_list = sorted(
             glob.glob(os.path.join(self.img_dir, "*.jpg"))
@@ -710,7 +831,7 @@ class DA3_Streaming:
             raise ValueError(f"[DIR EMPTY] No images found in {self.img_dir}!")
         print(f"Found {len(self.img_list)} images")
 
-        self.process_long_sequence()
+        self.process_long_sequence(resume_chunk=resume_chunk)
 
     def save_camera_poses(self):
         """
@@ -817,6 +938,28 @@ class DA3_Streaming:
 
         print(f"Camera poses visualization saved to {ply_path}")
 
+    def cleanup_temp_files_early(self):
+        """
+        Clean up temporary files after loop closure and alignment are complete.
+        This is safe because after this point, temp files are no longer needed.
+        Frees up disk space during processing instead of waiting until close().
+        """
+        if not self.delete_temp_files:
+            return
+
+        total_freed = 0
+
+        for temp_dir in [self.result_unaligned_dir, self.result_aligned_dir, self.result_loop_dir]:
+            if os.path.exists(temp_dir):
+                for filename in os.listdir(temp_dir):
+                    file_path = os.path.join(temp_dir, filename)
+                    if os.path.isfile(file_path):
+                        size = os.path.getsize(file_path)
+                        total_freed += size
+                        os.remove(file_path)
+
+        print(f"[CLEANUP] Freed {total_freed / (1024**3):.2f} GB of temporary files")
+
     def close(self):
         """
         Clean up temporary files and calculate reclaimed disk space.
@@ -890,6 +1033,7 @@ if __name__ == "__main__":
         help="Image path",
     )
     parser.add_argument("--output_dir", type=str, required=False, default=None, help="Output path")
+    parser.add_argument("--resume_chunk", type=int, required=False, default=0, help="Resume from chunk index")
     args = parser.parse_args()
 
     config = load_config(args.config)
@@ -913,7 +1057,7 @@ if __name__ == "__main__":
         warmup_numba()
 
     da3_streaming = DA3_Streaming(image_dir, save_dir, config)
-    da3_streaming.run()
+    da3_streaming.run(resume_chunk=args.resume_chunk)
     da3_streaming.close()
 
     del da3_streaming
