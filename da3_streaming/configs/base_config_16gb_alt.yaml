@@ -5,9 +5,9 @@ Weights:
 
 Model:
   use_ray_pose: True
-  chunk_size: 48
-  overlap: 24
-  loop_chunk_size: 16 # imgs of loop chunk = 2 * loop_chunk_size
+  chunk_size: 52
+  overlap: 26
+  loop_chunk_size: 17 # imgs of loop chunk = 2 * loop_chunk_size
   loop_enable: True
   useDBoW: False
   delete_temp_files: True
@@ -33,13 +33,13 @@ Model:
     tol: 1e-9
 
   Pointcloud_Save:
-    sample_ratio: 0.02
+    sample_ratio: 0.015
     conf_threshold_coef: 0.75 # conf_threshold = np.mean(confs) * conf_threshold_coef
 
 Loop:
   SALAD:
     image_size: [336, 336]
-    batch_size: 64
+    batch_size: 56
     similarity_threshold: 0.85
     top_k: 5
     use_nms: True
@@ -51,35 +51,10 @@ Loop:
     max_iterations: 30
     lambda_init: 1e-6
 
-# ===== 显存优化建议 =====
+# ===== 备选16GB配置 =====
 #
-# 如果运行时遇到 CUDA Out of Memory 错误:
+# 与 base_config_16gb.yaml 的差异：
+# - chunk_size: 52 vs 48 (更大的chunk提升几何一致性)
+# - batch_size: 56 vs 64 (降低batch_size以释放显存给更大的chunk)
 #
-# 1. 降低 chunk_size:
-#    - 90 -> 60 -> 45 -> 30
-#
-# 2. 降低 batch_size (Loop/SALAD):
-#    - batch_size: 32 -> 16 -> 8
-#
-# 3. 使用 CPU 对齐:
-#    - align_lib: 'torch' -> 'numba'
-#
-# 4. 减少输入图像分辨率:
-#    ffmpeg 时使用更小的 scale 值，如:
-#    ffmpeg -i video.mp4 -vf "fps=2,scale=448:-1" ./frames/frame_%06d.png
-#
-# 5. 禁用 ray_pose (轻微降低精度):
-#    - use_ray_pose: True -> False
-#
-# ===== 质量优化建议 =====
-#
-# 如果显存有余量，可以增加以下参数提升质量:
-#
-# 1. 增大 chunk_size (更好的几何一致性):
-#    - chunk_size: 60 -> 90 (横屏视频)
-#
-# 2. 使用更严格的对齐:
-#    - scale_compute_method: 'auto' -> 'ransac'
-#
-# 3. 增加点云采样:
-#    - Pointcloud_Save.sample_ratio: 0.015 -> 0.02
+# 如果当前配置运行稳定，可以稍后尝试此配置看是否也能成功
