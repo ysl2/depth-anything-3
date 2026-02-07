@@ -1,0 +1,74 @@
+Using 8 images for testing
+============================================================
+Step 1: Loading DA3 Model
+============================================================
+Loading DA3-LARGE from HuggingFace (this may take a few minutes)...
+[97m[INFO ] using MLP layer as FFN[0m
+DA3 model loaded successfully!
+
+============================================================
+Step 2: Running DA3 Inference
+============================================================
+Preprocessing images...
+Preprocessed 8 images
+Running DA3 inference...
+[97m[INFO ] Processed Images Done taking 0.13585281372070312 seconds. Shape:  torch.Size([8, 3, 504, 504])[0m
+[97m[INFO ] Selecting reference view using strategy: first[0m
+[97m[INFO ] Model Forward Pass Done. Time: 1.2678208351135254 seconds[0m
+[97m[INFO ] Conversion to Prediction Done. Time: 0.007272243499755859 seconds[0m
+DA3 inference completed!
+  - Depth shape: (8, 504, 504)
+  - Conf shape: (8, 504, 504)
+  - Extrinsics shape: (8, 3, 4)
+  - Intrinsics shape: (8, 3, 3)
+DA3 results saved!
+
+============================================================
+Step 3: Running FastSAM Segmentation
+============================================================
+Initializing FastSAM...
+Running FastSAM segmentation...
+[FastSAM] Loading model from ./da3_streaming/weights/FastSAM-x.pt...
+[FastSAM] Model loaded successfully
+[FastSAM] Processing 8 images...
+
+0: 1024x1024 44 objects, 63.1ms
+Speed: 5.6ms preprocess, 63.1ms inference, 18.7ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 38 objects, 63.0ms
+Speed: 4.9ms preprocess, 63.0ms inference, 3.7ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 36 objects, 63.7ms
+Speed: 3.3ms preprocess, 63.7ms inference, 3.4ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 65 objects, 61.2ms
+Speed: 3.4ms preprocess, 61.2ms inference, 5.4ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 47 objects, 60.4ms
+Speed: 2.9ms preprocess, 60.4ms inference, 4.1ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 96 objects, 60.4ms
+Speed: 3.3ms preprocess, 60.4ms inference, 7.7ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 66 objects, 60.4ms
+Speed: 3.4ms preprocess, 60.4ms inference, 5.4ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 69 objects, 60.8ms
+Speed: 3.1ms preprocess, 60.8ms inference, 5.4ms postprocess per image at shape (1, 3, 1024, 1024)
+Traceback (most recent call last):
+  File "/home/songliyu/Documents/Depth-Anything-3_semantic/simple_test.py", line 168, in simple_test
+    from da3_streaming import depth_to_point_cloud_vectorized
+  File "/home/songliyu/Documents/Depth-Anything-3_semantic/da3_streaming/da3_streaming.py", line 34, in <module>
+    from loop_utils.loop_detector import LoopDetector
+  File "/home/songliyu/Documents/Depth-Anything-3_semantic/da3_streaming/loop_utils/loop_detector.py", line 32, in <module>
+    from loop_utils.salad.models import helper
+ModuleNotFoundError: No module named 'loop_utils.salad.models'
+[FastSAM] Model unloaded, GPU memory freed
+FastSAM segmentation completed!
+  - Semantic masks shape: (8, 504, 504)
+Semantic masks saved!
+
+============================================================
+Step 4: Generating Semantic Point Cloud
+============================================================
+Point cloud generation failed: No module named 'loop_utils.salad.models'

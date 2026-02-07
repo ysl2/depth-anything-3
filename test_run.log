@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/songliyu/Documents/Depth-Anything-3_semantic/test_semantic_streaming.py", line 13, in <module>
+    from da3_semantic_streaming import DA3_Semantic_Streaming
+  File "/home/songliyu/Documents/Depth-Anything-3_semantic/da3_streaming/da3_semantic_streaming.py", line 38, in <module>
+    from loop_utils.loop_detector import LoopDetector
+  File "/home/songliyu/Documents/Depth-Anything-3_semantic/da3_streaming/loop_utils/loop_detector.py", line 32, in <module>
+    from loop_utils.salad.models import helper
+ModuleNotFoundError: No module named 'loop_utils.salad.models'

@@ -1,0 +1,103 @@
+Using 8 images for testing
+======================================================================
+Step 1: Loading DA3 Model
+======================================================================
+Loading DA3-LARGE from HuggingFace...
+[97m[INFO ] using MLP layer as FFN[0m
+DA3 model loaded successfully!
+
+======================================================================
+Step 2: Running DA3 Inference (Depth + Camera Pose)
+======================================================================
+[97m[INFO ] Processed Images Done taking 0.0708003044128418 seconds. Shape:  torch.Size([8, 3, 504, 504])[0m
+[97m[INFO ] Selecting reference view using strategy: first[0m
+[97m[INFO ] Model Forward Pass Done. Time: 1.057938814163208 seconds[0m
+[97m[INFO ] Conversion to Prediction Done. Time: 0.005948781967163086 seconds[0m
+DA3 inference completed!
+  - Depth shape: (8, 504, 504)
+  - Conf shape: (8, 504, 504)
+  - Extrinsics shape: (8, 3, 4)
+  - Intrinsics shape: (8, 3, 3)
+
+======================================================================
+Step 3: Running FastSAM Semantic Segmentation
+======================================================================
+Initializing FastSAM...
+Running FastSAM segmentation...
+[FastSAM] Loading model from ./da3_streaming/weights/FastSAM-x.pt...
+[FastSAM] Model loaded successfully
+[FastSAM] Processing 8 images...
+
+0: 1024x1024 49 objects, 60.5ms
+Speed: 5.7ms preprocess, 60.5ms inference, 18.2ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 44 objects, 60.4ms
+Speed: 5.1ms preprocess, 60.4ms inference, 3.9ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 40 objects, 63.7ms
+Speed: 3.1ms preprocess, 63.7ms inference, 4.3ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 34 objects, 60.9ms
+Speed: 3.0ms preprocess, 60.9ms inference, 3.3ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 32 objects, 60.4ms
+Speed: 3.1ms preprocess, 60.4ms inference, 3.1ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 35 objects, 60.9ms
+Speed: 3.2ms preprocess, 60.9ms inference, 3.4ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 35 objects, 60.4ms
+Speed: 3.2ms preprocess, 60.4ms inference, 3.4ms postprocess per image at shape (1, 3, 1024, 1024)
+
+0: 1024x1024 38 objects, 60.5ms
+Speed: 3.3ms preprocess, 60.5ms inference, 3.4ms postprocess per image at shape (1, 3, 1024, 1024)
+[FastSAM] Model unloaded, GPU memory freed
+FastSAM segmentation completed!
+  - Semantic masks shape: (8, 504, 504)
+  - Unique classes: [0 1]
+
+======================================================================
+Step 4: Generating Semantic Point Cloud
+======================================================================
+Converting depth maps to 3D point cloud...
+Point cloud shape: (8, 504, 504, 3)
+Total points after filtering: 1388018
+Semantic point cloud saved to: ./semantic_test_output/semantic_pointcloud.ply
+
+======================================================================
+Step 5: Creating Visualization Preview
+======================================================================
+Preview saved to: ./semantic_test_output/preview.png
+Semantic preview saved to: ./semantic_test_output/semantic_preview.png
+
+======================================================================
+✓ TEST COMPLETED SUCCESSFULLY!
+======================================================================
+Output saved to: ./semantic_test_output
+
+Generated files:
+semantic_test_output/
+  colormap.npy (0.00 MB)
+  preview.png (1.12 MB)
+  semantic_pointcloud.ply (25.15 MB)
+  semantic_preview.png (0.35 MB)
+
+======================================================================
+Visualization Instructions
+======================================================================
+To visualize the semantic point cloud:
+
+1. CloudCompare (recommended, free):
+   - Download: https://www.cloudcompare.org/
+   - Open: semantic_test_output/semantic_pointcloud.ply
+   - Use: Properties -> Scalar Field to view semantic labels
+
+2. MeshLab:
+   - Open the PLY file
+   - Use: Rendering -> Show Face Scalar
+
+3. Python:
+   import trimesh
+   pc = trimesh.load('semantic_test_output/semantic_pointcloud.ply')
+   print(pc.vertices.shape)
+

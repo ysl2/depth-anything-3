@@ -1,0 +1,109 @@
+Weights:
+  DA3: './weights/model.safetensors'  # 本地权重（不使用时忽略）
+  DA3_CONFIG: './weights/config.json'  # 本地配置（不使用时忽略）
+  SALAD: './weights/dino_salad.ckpt'  # 回路检测权重（可选）
+
+Model:
+  # DA3模型配置
+  # 使用HuggingFace模型名称（推荐）- 自动下载最新权重
+  model_preset: "depth-anything/DA3-LARGE"  # 或 "depth-anything/DA3-BASE" (更轻量)
+  # ===== 原有DA3配置 =====
+  use_ray_pose: True
+  chunk_size: 32  # 降低以适应FastSAM显存需求 (原48)
+  overlap: 16
+  loop_chunk_size: 16
+  loop_enable: True
+  useDBoW: False
+  delete_temp_files: True
+  align_lib: 'triton'
+  align_method: 'scale+se3'
+  scale_compute_method: 'auto'
+  align_type: 'dense'
+
+  ref_view_strategy: 'saddle_balanced'
+  ref_view_strategy_loop: 'saddle_balanced'
+  depth_threshold: 15.0
+
+  save_depth_conf_result: True
+  save_debug_info: False
+
+  Sparse_Align:
+    keypoint_select: 'orb'
+    keypoint_num: 5000
+
+  IRLS:
+    delta: 0.1
+    max_iters: 5
+    tol: 1e-9
+
+  Pointcloud_Save:
+    sample_ratio: 0.015
+    conf_threshold_coef: 0.75
+
+  # ===== 新增语义分割配置 =====
+  semantic_enable: True
+  fastsam_model: './weights/FastSAM-x.pt'
+
+  # 语义类别 (留空则使用COCO全部类别)
+  # 示例: ["person", "car", "building", "road", "vegetation", "sky"]
+  semantic_classes: null
+
+Loop:
+  SALAD:
+    image_size: [336, 336]
+    batch_size: 32
+    similarity_threshold: 0.85
+    top_k: 5
+    use_nms: True
+    nms_threshold: 25
+
+  SIM3_Optimizer:
+    lang_version: 'cpp'
+    max_iterations: 30
+    lambda_init: 1e-6
+
+# ===== 显存优化建议 (16GB显存) =====
+#
+# DA3 + FastSAM 显存使用:
+# - DA3 推理: ~3GB
+# - FastSAM 推理: ~2.6GB
+# - 峰值显存: ~6GB (交替使用，不会同时占用)
+# - 安全余量: ~10GB
+#
+# 如果遇到显存不足:
+#
+# 1. 降低 chunk_size:
+#    32 -> 24 -> 16
+#
+# 2. 禁用语义分割:
+#    semantic_enable: False
+#
+# 3. 降低 batch_size:
+#    batch_size: 32 -> 16
+#
+# 4. 使用 CPU 对齐:
+#    align_lib: 'triton' -> 'numba'
+#
+# 5. 禁用 ray_pose:
+#    use_ray_pose: True -> False
+#
+# ===== 语义分割说明 =====
+#
+# FastSAM 特点:
+# - 模型大小: ~68MB
+# - 推理速度: 比SAM快50倍
+# - 显存需求: ~2.6GB
+# - 支持文本提示进行开放词汇分割
+#
+# 使用方式:
+# 1. 自动模式 (semantic_classes: null)
+#    - 自动检测COCO 80类物体
+#
+# 2. 文本提示模式 (semantic_classes: ["class1", "class2", ...])
+#    - 仅分割指定类别
+#    - 支持自定义语义类别
+#
+# 输出:
+# - PLY文件包含原始RGB颜色
+# - PLY文件包含语义标签和语义颜色
+# - 支持在查看器中切换显示模式

@@ -1,0 +1,53 @@
+Traceback (most recent call last):
+  File "/home/songliyu/Documents/Depth-Anything-3_semantic/da3_streaming/semantic_segmentation.py", line 137, in load_model
+    from fastsam import FastSAM, FastSAMPrompt
+  File "/home/songliyu/.vocal/miniforge3/envs/da3/lib/python3.10/site-packages/fastsam/__init__.py", line 3, in <module>
+    from .model import FastSAM
+  File "/home/songliyu/.vocal/miniforge3/envs/da3/lib/python3.10/site-packages/fastsam/model.py", line 12, in <module>
+    from ultralytics.yolo.cfg import get_cfg
+ModuleNotFoundError: No module named 'ultralytics.yolo'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/songliyu/Documents/Depth-Anything-3_semantic/simple_test.py", line 139, in simple_test
+    semantic_results = segment_with_memory_cleanup(
+  File "/home/songliyu/Documents/Depth-Anything-3_semantic/da3_streaming/semantic_segmentation.py", line 346, in segment_with_memory_cleanup
+    segmenter.load_model()
+  File "/home/songliyu/Documents/Depth-Anything-3_semantic/da3_streaming/semantic_segmentation.py", line 147, in load_model
+    raise ImportError(
+ImportError: FastSAM not installed. Install with:
+  pip install git+https://github.com/CASIA-IVA-Lab/FastSAM.git
+Using 8 images for testing
+============================================================
+Step 1: Loading DA3 Model
+============================================================
+Loading DA3-LARGE from HuggingFace (this may take a few minutes)...
+[97m[INFO ] using MLP layer as FFN[0m
+DA3 model loaded successfully!
+
+============================================================
+Step 2: Running DA3 Inference
+============================================================
+Preprocessing images...
+Preprocessed 8 images
+Running DA3 inference...
+[97m[INFO ] Processed Images Done taking 0.02010321617126465 seconds. Shape:  torch.Size([8, 3, 504, 504])[0m
+[97m[INFO ] Selecting reference view using strategy: first[0m
+[97m[INFO ] Model Forward Pass Done. Time: 1.148611307144165 seconds[0m
+[97m[INFO ] Conversion to Prediction Done. Time: 0.005728721618652344 seconds[0m
+DA3 inference completed!
+  - Depth shape: (8, 504, 504)
+  - Conf shape: (8, 504, 504)
+  - Extrinsics shape: (8, 3, 4)
+  - Intrinsics shape: (8, 3, 3)
+DA3 results saved!
+
+============================================================
+Step 3: Running FastSAM Segmentation
+============================================================
+Initializing FastSAM...
+Running FastSAM segmentation...
+[FastSAM] Loading model from ./da3_streaming/weights/FastSAM-x.pt...
+FastSAM segmentation failed: FastSAM not installed. Install with:
+  pip install git+https://github.com/CASIA-IVA-Lab/FastSAM.git
