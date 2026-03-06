@@ -1,12 +1,28 @@
 import argparse
 import numpy as np
+import open3d as o3d
 import pyvista as pv
+
+
+def load_mesh(path: str) -> pv.PolyData:
+    if path.lower().endswith(".pcd"):
+        point_cloud = o3d.io.read_point_cloud(path)
+        points = np.asarray(point_cloud.points)
+        if points.size == 0:
+            raise ValueError(f"Failed to load any points from {path}")
+
+        mesh = pv.PolyData(points)
+        if point_cloud.has_colors():
+            mesh["rgb"] = np.asarray(point_cloud.colors)
+        return mesh
+
+    return pv.read(path)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Visualize point cloud using PyVista")
     parser.add_argument("-i", "--input", type=str, required=True,
-                        help="Path to PLY point cloud file")
+                        help="Path to point cloud file (.ply or .pcd)")
     # parser.add_argument("-w", "--window-name", type=str, default="Point Cloud Viewer",
     #                     help="Window title")
     parser.add_argument("--width", type=int, default=2560,
@@ -30,7 +46,7 @@ def main():
 
     # Read point cloud
     print(f"Loading point cloud from {args.input}...")
-    mesh = pv.read(args.input)
+    mesh = load_mesh(args.input)
     print(f"Loaded {mesh.n_points} points, arrays: {mesh.array_names}")
 
     # Check for RGB colors
