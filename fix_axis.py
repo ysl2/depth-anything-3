@@ -2,7 +2,39 @@ import pyvista as pv
 import argparse
 import os
 import numpy as np
+import open3d as o3d
 from vtkmodules.vtkIOPLY import vtkPLYWriter
+
+
+def load_mesh(path: str) -> pv.PolyData:
+    if path.lower().endswith(".pcd"):
+        point_cloud = o3d.io.read_point_cloud(path)
+        points = np.asarray(point_cloud.points)
+        if points.size == 0:
+            raise ValueError(f"Failed to load any points from {path}")
+
+        mesh = pv.PolyData(points)
+        if point_cloud.has_colors():
+            mesh["rgb"] = np.asarray(point_cloud.colors)
+        return mesh
+
+    return pv.read(path)
+
+
+def build_output_path(filename: str) -> str:
+    base, ext = os.path.splitext(filename)
+    if ext.lower() == ".pcd":
+        ext = ".ply"
+    return f"{base}_corrected{ext}"
+
+
+def prepare_rgb_for_save(rgb_data: np.ndarray) -> np.ndarray:
+    rgb = np.asarray(rgb_data)
+    if np.issubdtype(rgb.dtype, np.floating):
+        rgb = np.clip(np.rint(rgb * 255.0), 0, 255).astype(np.uint8)
+    elif rgb.dtype != np.uint8:
+        rgb = np.clip(rgb, 0, 255).astype(np.uint8)
+    return rgb
 
 
 class AxisRotator:
@@ -119,8 +151,7 @@ class AxisRotator:
     def save_cloud(self, state):
         if not state: return
 
-        base, ext = os.path.splitext(self.filename)
-        out_name = f"{base}_corrected{ext}"
+        out_name = build_output_path(self.filename)
 
         print(f"\n正在保存到: {out_name} ...")
 
@@ -131,9 +162,8 @@ class AxisRotator:
             # 1. 暂存当前用于显示的浮点颜色
             temp_visual_rgb = self.mesh[self.rgb_name].copy()
 
-            # 2. 【关键修复】将 RGB 数据恢复为原始 uint8 格式 (0-255)
-            # VTK PLYWriter 需要 uint8 类型的 RGB 数据
-            self.mesh.point_data[self.rgb_name] = self.raw_rgb_data
+            # 2. VTK PLYWriter 需要 uint8 类型的 RGB 数据
+            self.mesh.point_data[self.rgb_name] = prepare_rgb_for_save(self.raw_rgb_data)
             self.mesh.set_active_scalars(self.rgb_name)
 
         try:
@@ -162,7 +192,7 @@ class AxisRotator:
 
 def main():
     parser = argparse.ArgumentParser(description="交互式点云轴向校准工具 (with Fine Tuning)")
-    parser.add_argument("-i", "--input", required=True, help="Path to input PLY file")
+    parser.add_argument("-i", "--input", required=True, help="Path to input point cloud file (.ply or .pcd)")
     args = parser.parse_args()
 
     if not os.path.exists(args.input):
@@ -170,7 +200,7 @@ def main():
         return
 
     print(f"Loading {args.input}...")
-    mesh = pv.read(args.input)
+    mesh = load_mesh(args.input)
 
     # ---------------- RGB 数据处理逻辑 ----------------
     rgb_name = None
