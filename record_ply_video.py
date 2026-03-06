@@ -4,14 +4,30 @@
 围绕点云旋转相机并录制视频
 """
 import argparse
-import pyvista as pv
 import numpy as np
+import open3d as o3d
+import pyvista as pv
+
+
+def load_mesh(path: str) -> pv.PolyData:
+    if path.lower().endswith(".pcd"):
+        point_cloud = o3d.io.read_point_cloud(path)
+        points = np.asarray(point_cloud.points)
+        if points.size == 0:
+            raise ValueError(f"Failed to load any points from {path}")
+
+        mesh = pv.PolyData(points)
+        if point_cloud.has_colors():
+            mesh["rgb"] = np.asarray(point_cloud.colors)
+        return mesh
+
+    return pv.read(path)
 
 
 def main():
     parser = argparse.ArgumentParser(description="录制点云旋转视频")
     parser.add_argument("-i", "--input", type=str, required=True,
-                        help="点云 PLY 文件路径")
+                        help="点云文件路径 (.ply or .pcd)")
     parser.add_argument("-o", "--output", type=str, default=None,
                         help="输出视频文件路径 (默认: <input>_video.mp4)")
     parser.add_argument("--fps", type=int, default=30,
@@ -46,7 +62,7 @@ def main():
 
     # 读取点云
     print(f"加载点云: {args.input}")
-    mesh = pv.read(args.input)
+    mesh = load_mesh(args.input)
     print(f"点数: {mesh.n_points}, 数组: {mesh.array_names}")
 
     # 检查 RGB
